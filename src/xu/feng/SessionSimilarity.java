@@ -1,8 +1,10 @@
 package xu.feng;
 
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -11,19 +13,42 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.log4j.PropertyConfigurator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 public class SessionSimilarity {
 
+	static Logger log = LoggerFactory.getLogger(SessionSimilarity.class);
+	
 	public static void main(String[] args) throws IOException {
-		File csv = new File("session_url.csv");
+		//PropertyConfigurator.configure("log4j.properties");
+		
+		File csv = new File("session_url10.csv");
+		File output = new File("session.csv");
+		if (output.exists()) {
+			output.delete();
+		}
+		File idOutput = new File("session_ids.csv");
+		if (idOutput.exists()) {
+			idOutput.delete();
+		}
+		BufferedWriter bw = new BufferedWriter(new FileWriter(output));
+		BufferedWriter idbw = new BufferedWriter(new FileWriter(idOutput));
+		
 		FileReader reader = new FileReader(csv);
 		BufferedReader br = new BufferedReader(reader);
 		String line;
 		
+		int countSim1 = 0, countSim2 = 0;
+		
 		Map<String, List<String>> sessionMap = new HashMap<String, List<String>>();
         Set<String> urlSet = new HashSet<String>();
+        
+        Map<String, Map<String, Double>> simMatrix = new HashMap<String, Map<String, Double>>();
 
 		while ((line = br.readLine()) != null) {
-			System.out.println(line);
+			//log.info(line);
 			String[] strArr = line.split(",");
 			String sessionId = strArr[0], url = strArr[1];
             // add url to set
@@ -43,27 +68,103 @@ public class SessionSimilarity {
 
         br.close();
 
-		System.out.println(sessionMap.toString());
-		
+		//log.info(sessionMap.toString());
+		/*
 		double sim1 = calSessionSim1(sessionMap.get("s1"), sessionMap.get("s2"));
 		
-        System.out.println("Sim1 = " + sim1);
+        log.info("Sim1 = " + sim1);
 
         for (String url : sessionMap.get("s1")) {
-            System.out.println(url + " degree: " + getUrlDegree(url));
+            log.info(url + " degree: " + getUrlDegree(url));
         }
 
         double sim2 = calSessionSim2(sessionMap.get("s1"), sessionMap.get("s2"));
 
-        System.out.println("Sim2 = " + sim2);
-
-        System.out.println("url sim: " + calUrlSim("/", "/info/prospective/"));
-        System.out.println("url sim: " + calUrlSim("/info/prospective/", "/"));
-        System.out.println("url sim: " + calUrlSim("/", "/"));
-        System.out.println("url sim: "
+        log.info("Sim2 = " + sim2);
+		 */
+        log.info("url sim: " + calUrlSim("/", "/info/prospective/"));
+        log.info("url sim: " + calUrlSim("/info/prospective/", "/"));
+        log.info("url sim: " + calUrlSim("/", "/"));
+        log.info("url sim: "
                 + calUrlSim("/education/computer-science/programinfo.html", "/education/computer-science/programapply.htm"));
 
-        System.out.println("final sim: " + Math.max(sim1, sim2));
+        //log.info("final sim: " + Math.max(sim1, sim2));
+        
+        // calculate simMatrix
+        try {
+        	int count = 0;
+        	
+        	for (int i = 1; i <= sessionMap.keySet().size(); i++) {
+        		log.info("session " + i + ": " + sessionMap.keySet().toArray()[i-1]);
+        		idbw.write(sessionMap.keySet().toArray()[i-1].toString());
+        		idbw.newLine();
+        	}
+        	idbw.flush();
+        	idbw.close();
+        	
+	        for (String session_id1 : sessionMap.keySet()) {
+	        	
+	        	Map<String, Double> simMap = simMatrix.get(session_id1);
+	        	if (simMap == null) {
+	        		simMap = new HashMap<String, Double>();
+	        		simMatrix.put(session_id1, simMap);
+	        	}
+	        	count++;
+	        	
+	        	//if (count == 21) {
+	        	//	break;
+	        	//}
+	        	
+	        	log.info(count + ":cal sim between " + session_id1 + " and others");
+	        	int count2 = 0;
+				for (String session_id2 : sessionMap.keySet()) {
+					if (!session_id1.equals(session_id2)) {
+						
+						double tsim1 = calSessionSim1(sessionMap.get(session_id1), sessionMap.get(session_id2));
+						double tsim2 = calSessionSim2(sessionMap.get(session_id1), sessionMap.get(session_id2));
+						//log.info("sim " + session_id2 + ": " + tsim1 + "," + tsim2);
+						double tsim = Math.max(tsim1, tsim2);
+						if (tsim1 >= tsim2) {
+							countSim1++;
+						} else {
+							countSim2++;
+						}
+						simMap.put(session_id2, tsim);
+					} else {
+						simMap.put(session_id2, 1.0);
+					}
+					count2++;
+					//if (count2 == 20) {
+					//	break;
+					//}
+				}
+			}
+
+	        log.info("-----result-----");
+	        for (String session_id : simMatrix.keySet()) {
+	        	Map<String, Double> simMap = simMatrix.get(session_id);
+	        	String resultLine = "";
+	        	for (String t_session_id : simMap.keySet()) {
+	        		if (!resultLine.equals("")) {
+	        			bw.write(",");
+	        		}
+	        		Double dSim = simMap.get(t_session_id);
+	        		resultLine += String.format("%1$,.2f ", 1 - dSim);
+	        		bw.write(String.format("%1$,.4f", 1 - dSim));
+	        	}
+	        	if (simMap.size() > 0) {
+        		    bw.newLine();
+    	        	log.info(resultLine);
+	        	}
+	        }
+	        
+	        log.info("use sim1 count: " + countSim1 + ", use sim2 count:" + countSim2);
+	        
+	        bw.flush();
+	        bw.close();
+        } catch (Exception e) {
+        	log.info(e.toString());
+        }
 	}
 	
     static double calSessionSim1(List<String> s1, List<String> s2) {
@@ -94,8 +195,10 @@ public class SessionSimilarity {
             for (String s2url : s2) {
                 if (s1url.equals(s2url)) {
                     numerator++;
+                    //log.info("url sim " + s1url + ", " + s2url + ": 1");
                 } else {
                     urlSim = calUrlSim(s1url, s2url);
+                    //log.info("url sim " + s1url + ", " + s2url + ": " + urlSim);
                     numerator += urlSim;
                 }
             }
