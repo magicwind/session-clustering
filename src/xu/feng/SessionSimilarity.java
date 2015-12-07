@@ -3,6 +3,7 @@ package xu.feng;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -24,7 +25,6 @@ public class SessionSimilarity {
 	public static void main(String[] args) throws IOException {
 		//PropertyConfigurator.configure("log4j.properties");
 		
-		File csv = new File("session_url10.csv");
 		File output = new File("session.csv");
 		if (output.exists()) {
 			output.delete();
@@ -36,37 +36,11 @@ public class SessionSimilarity {
 		BufferedWriter bw = new BufferedWriter(new FileWriter(output));
 		BufferedWriter idbw = new BufferedWriter(new FileWriter(idOutput));
 		
-		FileReader reader = new FileReader(csv);
-		BufferedReader br = new BufferedReader(reader);
-		String line;
-		
 		int countSim1 = 0, countSim2 = 0;
-		
-		Map<String, List<String>> sessionMap = new HashMap<String, List<String>>();
-        Set<String> urlSet = new HashSet<String>();
         
         Map<String, Map<String, Double>> simMatrix = new HashMap<String, Map<String, Double>>();
 
-		while ((line = br.readLine()) != null) {
-			//log.info(line);
-			String[] strArr = line.split(",");
-			String sessionId = strArr[0], url = strArr[1];
-            // add url to set
-            urlSet.add(url);
-
-			if (sessionMap.containsKey(sessionId)) {
-				sessionMap.get(sessionId).add(url);
-			} else {
-				List<String> newSession = new ArrayList<String>();
-				if (newSession.add(url)) {
-					sessionMap.put(sessionId, newSession);
-				} else {
-					throw new RuntimeException("failed to add url '" + url + "' to session '" + sessionId + "'");
-				}
-			}
-		}
-
-        br.close();
+		Map<String, List<String>> sessionMap = readSession("session_url10.csv");
 
 		//log.info(sessionMap.toString());
 		/*
@@ -165,6 +139,39 @@ public class SessionSimilarity {
         } catch (Exception e) {
         	log.info(e.toString());
         }
+	}
+
+	public static Map<String, List<String>> readSession(String fileName)
+			throws FileNotFoundException, IOException {
+		File csv = new File(fileName);
+		FileReader reader = new FileReader(csv);
+		BufferedReader br = new BufferedReader(reader);
+		String line;
+
+		Map<String, List<String>> sessionMap = new HashMap<String, List<String>>();
+        Set<String> urlSet = new HashSet<String>();
+
+		while ((line = br.readLine()) != null) {
+			//log.info(line);
+			String[] strArr = line.split(",");
+			String sessionId = strArr[0], url = strArr[1];
+            // add url to set
+            urlSet.add(url);
+
+			if (sessionMap.containsKey(sessionId)) {
+				sessionMap.get(sessionId).add(url);
+			} else {
+				List<String> newSession = new ArrayList<String>();
+				if (newSession.add(url)) {
+					sessionMap.put(sessionId, newSession);
+				} else {
+					throw new RuntimeException("failed to add url '" + url + "' to session '" + sessionId + "'");
+				}
+			}
+		}
+
+        br.close();
+		return sessionMap;
 	}
 	
     static double calSessionSim1(List<String> s1, List<String> s2) {
